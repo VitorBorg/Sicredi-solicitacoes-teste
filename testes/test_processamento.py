@@ -55,7 +55,7 @@ class TesteSelecionar(unittest.TestCase):
         self.assertIn("não é um objeto JSON", ignorados[0][1])
 
 
-class TesteArquivoSolicitacoes(unittest.TestCase):
+class TesteIOController(unittest.TestCase):
     def test_carrega_arquivo_de_exemplo(self):
         arquivo = IOController(Path("solicitacoes.json"), Path("aprovados.csv"))
         self.assertEqual(len(arquivo.carregar()), 15)

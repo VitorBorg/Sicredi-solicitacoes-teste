@@ -4,7 +4,7 @@ import json
 from definitions import COLUNAS_CSV, SEPARADOR_CSV
 
 
-class ArquivoSolicitacoes:
+class IOController:
     def __init__(self, entrada, saida):
         self.entrada = entrada
         self.saida = saida
