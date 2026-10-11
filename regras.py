@@ -31,9 +31,8 @@ def selecionar(registros):
 
 
 def motivo_para_ignorar(solicitacao):
-    """Regras que decidem se uma solicitação já validada deve ser exportada."""
     if solicitacao.status is not Status.APROVADO:
-        return f"status {solicitacao.status} não é {Status.APROVADO}"
+        return f"status {solicitacao.status} não é válido para exportação."
 
     cpf = solicitacao.cpf.strip()
     if not cpf:

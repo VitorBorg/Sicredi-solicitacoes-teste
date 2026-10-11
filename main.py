@@ -56,12 +56,12 @@ def identificacao(registro):
 
 def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=selecionar):
     arquivo = arquivo_cls(caminho_entrada, caminho_saida)
-    logging.info("Início do processamento")
+    logging.info("Início da validação de solicitações")
 
     try:
         registros = arquivo.carregar()
     except FileNotFoundError:
-        logging.error("Arquivo de entrada não encontrado: %s", caminho_entrada)
+        logging.error("Arquivo não encontrado: %s", caminho_entrada)
         return 1
     except json.JSONDecodeError as erro:
         logging.error("JSON inválido em %s: %s", caminho_entrada, erro)
@@ -70,7 +70,7 @@ def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=s
         logging.error("Estrutura inesperada em %s: %s", caminho_entrada, erro)
         return 1
     except OSError as erro:
-        logging.error("Falha ao ler %s: %s", caminho_entrada, erro)
+        logging.error("Falha na leitura de %s: %s", caminho_entrada, erro)
         return 1
 
     logging.info("Total de registros lidos: %d", len(registros))
@@ -79,14 +79,17 @@ def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=s
     for registro, motivo in ignorados:
         logging.warning("Registro id=%s ignorado: %s", identificacao(registro), motivo)
 
+        logging.info("Conclusão da etapa de validação")
+
     try:
+        logging.info("Início da exportação em csv das solicitações aprovadas")
         arquivo.exportar(aprovados)
     except OSError as erro:
         logging.error("Falha ao gerar %s: %s", caminho_saida, erro)
         return 1
 
     logging.info("Total de registros exportados: %d", len(aprovados))
-    logging.info("Conclusão do processamento")
+    logging.info("Conclusão da etapa de exportação")
 
     return 0
 

@@ -14,7 +14,7 @@ class IOController:
             dados = json.load(arquivo)
 
         if not isinstance(dados, list):
-            raise ValueError("o arquivo deveria conter uma lista de registros")
+            raise ValueError("o arquivo deveria possuir uma lista de registros")
 
         return dados
 
