@@ -18,7 +18,7 @@ class TesteMotivoParaIgnorar(unittest.TestCase):
         self.assertEqual(motivo_para_ignorar(montar_solicitacao(cpf="")), "CPF nulo ou vazio")
 
     def test_ignora_status_diferente_de_aprovado(self):
-        self.assertIn("não é APROVADO", motivo_para_ignorar(montar_solicitacao(status="PENDENTE")))
+        self.assertIn("não é válido para exportação", motivo_para_ignorar(montar_solicitacao(status="PENDENTE")))
 
 
 class TesteSelecionar(unittest.TestCase):
