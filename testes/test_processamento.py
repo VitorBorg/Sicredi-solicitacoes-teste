@@ -23,9 +23,6 @@ class TesteMotivoParaIgnorar(unittest.TestCase):
     def test_ignora_cpf_vazio(self):
         self.assertEqual(motivo_para_ignorar(montar_solicitacao(cpf="")), "CPF nulo ou vazio")
 
-    def test_ignora_cpf_com_formato_inesperado(self):
-        self.assertIn("formato inesperado", motivo_para_ignorar(montar_solicitacao(cpf="123")))
-
     def test_ignora_status_diferente_de_aprovado(self):
         self.assertIn("não é APROVADO", motivo_para_ignorar(montar_solicitacao(status="PENDENTE")))
 
@@ -53,6 +50,14 @@ class TesteSelecionar(unittest.TestCase):
 
         self.assertEqual(aprovados, [])
         self.assertIn("não é um objeto JSON", ignorados[0][1])
+
+    def test_ignora_registro_com_cpf_nulo(self):
+        aprovados, ignorados = selecionar(
+            [{"id": 1, "nome": "Maria Silva", "cpf": None, "status": "APROVADO"}]
+        )
+
+        self.assertEqual(aprovados, [])
+        self.assertEqual(ignorados[0][1], "registro inválido: cpf")
 
 
 class TesteIOController(unittest.TestCase):
@@ -108,6 +113,15 @@ class TesteFluxo(unittest.TestCase):
             pasta = Path(pasta)
             (pasta / "solicitacoes.json").write_text("{invalido", encoding="utf-8")
             codigo = main.executar(pasta / "solicitacoes.json", pasta / "aprovados.csv")
+
+        self.assertEqual(codigo, 1)
+
+    def test_executar_retorna_um_quando_a_entrada_nao_pode_ser_lida(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            pasta = Path(pasta)
+            diretorio = pasta / "pasta"
+            diretorio.mkdir()
+            codigo = main.executar(diretorio, pasta / "aprovados.csv")
 
         self.assertEqual(codigo, 1)
 

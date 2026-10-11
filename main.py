@@ -69,6 +69,9 @@ def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=s
     except ValueError as erro:
         logging.error("Estrutura inesperada em %s: %s", caminho_entrada, erro)
         return 1
+    except OSError as erro:
+        logging.error("Falha ao ler %s: %s", caminho_entrada, erro)
+        return 1
 
     logging.info("Total de registros lidos: %d", len(registros))
 

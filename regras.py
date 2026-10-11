@@ -39,9 +39,6 @@ def motivo_para_ignorar(solicitacao):
     if not cpf:
         return "CPF nulo ou vazio"
 
-    if not cpf.isdigit() or len(cpf) != 11:
-        return "CPF com formato inesperado (esperado 11 dígitos)"
-
     return None
 
 
