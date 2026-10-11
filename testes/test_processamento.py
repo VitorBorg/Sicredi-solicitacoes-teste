@@ -88,11 +88,7 @@ class TesteFluxo(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with patch("main.ARQUIVO_ENTRADA", pasta / "solicitacoes.json"), patch(
-                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
-            ):
-                codigo = main.executar()
-
+            codigo = main.executar(pasta / "solicitacoes.json", pasta / "aprovados.csv")
             conteudo = (pasta / "aprovados.csv").read_text(encoding="utf-8")
 
         self.assertEqual(codigo, 0)
@@ -102,11 +98,7 @@ class TesteFluxo(unittest.TestCase):
     def test_executar_retorna_um_quando_o_arquivo_nao_existe(self):
         with tempfile.TemporaryDirectory() as pasta:
             pasta = Path(pasta)
-
-            with patch("main.ARQUIVO_ENTRADA", pasta / "inexistente.json"), patch(
-                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
-            ):
-                codigo = main.executar()
+            codigo = main.executar(pasta / "inexistente.json", pasta / "aprovados.csv")
 
         self.assertEqual(codigo, 1)
 
@@ -114,13 +106,26 @@ class TesteFluxo(unittest.TestCase):
         with tempfile.TemporaryDirectory() as pasta:
             pasta = Path(pasta)
             (pasta / "solicitacoes.json").write_text("{invalido", encoding="utf-8")
-
-            with patch("main.ARQUIVO_ENTRADA", pasta / "solicitacoes.json"), patch(
-                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
-            ):
-                codigo = main.executar()
+            codigo = main.executar(pasta / "solicitacoes.json", pasta / "aprovados.csv")
 
         self.assertEqual(codigo, 1)
+
+
+class TesteArgumentosCLI(unittest.TestCase):
+    def test_sem_argumentos_usa_as_constantes(self):
+        with patch("sys.argv", ["main.py"]):
+            argumentos = main.argumentos_cli()
+
+        self.assertEqual(argumentos.entrada, main.ARQUIVO_ENTRADA)
+        self.assertEqual(argumentos.saida, main.ARQUIVO_SAIDA)
+        self.assertEqual(argumentos.log, main.ARQUIVO_LOG)
+
+    def test_aceita_caminhos_pelos_flags(self):
+        with patch("sys.argv", ["main.py", "--entrada", "outro.json", "--saida", "outro.csv"]):
+            argumentos = main.argumentos_cli()
+
+        self.assertEqual(argumentos.entrada, Path("outro.json"))
+        self.assertEqual(argumentos.saida, Path("outro.csv"))
 
 
 if __name__ == "__main__":
