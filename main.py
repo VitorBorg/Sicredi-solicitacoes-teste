@@ -3,12 +3,12 @@ import json
 import logging
 from pathlib import Path
 
-from arquivo import ArquivoSolicitacoes
+from iocontroller import IOController
 from definitions import ARQUIVO_ENTRADA, ARQUIVO_LOG, ARQUIVO_SAIDA
 from regras import selecionar
 
 
-def argumentos_cli():
+def argumentos_cli(argv=None):
     parser = argparse.ArgumentParser(
         description="Processa solicitações aprovadas e gera o CSV."
     )
@@ -32,7 +32,7 @@ def argumentos_cli():
         help="Arquivo de log (padrão: %(default)s)",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def configurar_log(caminho):
@@ -54,8 +54,8 @@ def identificacao(registro):
     return "?"
 
 
-def executar(caminho_entrada, caminho_saida):
-    arquivo = ArquivoSolicitacoes(caminho_entrada, caminho_saida)
+def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=selecionar):
+    arquivo = arquivo_cls(caminho_entrada, caminho_saida)
     logging.info("Início do processamento")
 
     try:
@@ -72,7 +72,7 @@ def executar(caminho_entrada, caminho_saida):
 
     logging.info("Total de registros lidos: %d", len(registros))
 
-    aprovados, ignorados = selecionar(registros)
+    aprovados, ignorados = selecao(registros)
     for registro, motivo in ignorados:
         logging.warning("Registro id=%s ignorado: %s", identificacao(registro), motivo)
 

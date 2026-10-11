@@ -1,10 +1,11 @@
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import main
-from arquivo import ArquivoSolicitacoes
+from iocontroller import IOController
 from definitions import Solicitacao
 from regras import motivo_para_ignorar, selecionar
 
@@ -56,14 +57,14 @@ class TesteSelecionar(unittest.TestCase):
 
 class TesteArquivoSolicitacoes(unittest.TestCase):
     def test_carrega_arquivo_de_exemplo(self):
-        arquivo = ArquivoSolicitacoes(Path("solicitacoes.json"), Path("aprovados.csv"))
+        arquivo = IOController(Path("solicitacoes.json"), Path("aprovados.csv"))
         self.assertEqual(len(arquivo.carregar()), 15)
 
     def test_rejeita_json_cuja_raiz_nao_e_lista(self):
         with tempfile.TemporaryDirectory() as pasta:
             entrada = Path(pasta) / "entrada.json"
             entrada.write_text('{"id": 1}', encoding="utf-8")
-            arquivo = ArquivoSolicitacoes(entrada, Path(pasta) / "aprovados.csv")
+            arquivo = IOController(entrada, Path(pasta) / "aprovados.csv")
 
             with self.assertRaises(ValueError):
                 arquivo.carregar()
@@ -71,7 +72,7 @@ class TesteArquivoSolicitacoes(unittest.TestCase):
     def test_exporta_csv_com_cabecalho_e_linhas(self):
         with tempfile.TemporaryDirectory() as pasta:
             saida = Path(pasta) / "aprovados.csv"
-            ArquivoSolicitacoes(Path("solicitacoes.json"), saida).exportar([montar_solicitacao()])
+            IOController(Path("solicitacoes.json"), saida).exportar([montar_solicitacao()])
             linhas = saida.read_text(encoding="utf-8").splitlines()
 
         self.assertEqual(linhas[0], "id;nome;cpf")
@@ -113,19 +114,127 @@ class TesteFluxo(unittest.TestCase):
 
 class TesteArgumentosCLI(unittest.TestCase):
     def test_sem_argumentos_usa_as_constantes(self):
-        with patch("sys.argv", ["main.py"]):
-            argumentos = main.argumentos_cli()
+        argumentos = main.argumentos_cli([])
 
         self.assertEqual(argumentos.entrada, main.ARQUIVO_ENTRADA)
         self.assertEqual(argumentos.saida, main.ARQUIVO_SAIDA)
         self.assertEqual(argumentos.log, main.ARQUIVO_LOG)
 
     def test_aceita_caminhos_pelos_flags(self):
-        with patch("sys.argv", ["main.py", "--entrada", "outro.json", "--saida", "outro.csv"]):
-            argumentos = main.argumentos_cli()
+        argumentos = main.argumentos_cli(
+            ["--entrada", "outro.json", "--saida", "outro.csv", "--log", "outro.log"]
+        )
 
         self.assertEqual(argumentos.entrada, Path("outro.json"))
         self.assertEqual(argumentos.saida, Path("outro.csv"))
+        self.assertEqual(argumentos.log, Path("outro.log"))
+
+
+class TesteCLIFimAFim(unittest.TestCase):
+    def test_main_processa_a_entrada_pela_linha_de_comando(self):
+        raiz = Path(__file__).resolve().parent.parent
+
+        with tempfile.TemporaryDirectory() as pasta:
+            pasta = Path(pasta)
+            entrada = pasta / "solicitacoes.json"
+            saida = pasta / "aprovados.csv"
+            log = pasta / "processamento.log"
+            entrada.write_text(
+                '[{"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"}, '
+                '{"id": 3, "nome": "Ana Oliveira", "cpf": "98765432100", "status": "PENDENTE"}]',
+                encoding="utf-8",
+            )
+
+            resultado = subprocess.run(
+                [
+                    sys.executable,
+                    "main.py",
+                    "--entrada", str(entrada),
+                    "--saida", str(saida),
+                    "--log", str(log),
+                ],
+                cwd=raiz,
+                capture_output=True,
+                text=True,
+            )
+
+            conteudo = saida.read_text(encoding="utf-8")
+
+        self.assertEqual(resultado.returncode, 0)
+        self.assertEqual(conteudo.splitlines()[0], "id;nome;cpf")
+        self.assertIn("1;Maria Silva;12345678900", conteudo)
+        self.assertNotIn("Ana Oliveira", conteudo)
+
+    def test_main_retorna_erro_na_cli_quando_arquivo_nao_existe(self):
+        raiz = Path(__file__).resolve().parent.parent
+
+        with tempfile.TemporaryDirectory() as pasta:
+            resultado = subprocess.run(
+                [
+                    sys.executable,
+                    "main.py",
+                    "--entrada", str(Path(pasta) / "inexistente.json"),
+                    "--saida", str(Path(pasta) / "aprovados.csv"),
+                    "--log", str(Path(pasta) / "processamento.log"),
+                ],
+                cwd=raiz,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(resultado.returncode, 1)
+
+
+class ArquivoFake:
+    def __init__(self, entrada=None, saida=None):
+        self.entrada = entrada
+        self.saida = saida
+        self.registros = []
+        self.exportados = None
+
+    def carregar(self):
+        return self.registros
+
+    def exportar(self, aprovados):
+        self.exportados = aprovados
+
+
+class TesteExecutarComDependenciasInjetadas(unittest.TestCase):
+    def test_executar_usa_as_dependencias_injetadas_sem_disco(self):
+        arquivo = ArquivoFake()
+        arquivo.registros = [
+            {"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"},
+            {"id": 2, "nome": "João Souza", "cpf": "", "status": "APROVADO"},
+        ]
+
+        codigo = main.executar(
+            "entrada.json",
+            "aprovados.csv",
+            arquivo_cls=lambda entrada, saida: arquivo,
+            selecao=selecionar,
+        )
+
+        self.assertEqual(codigo, 0)
+        self.assertEqual([solicitacao.id for solicitacao in arquivo.exportados], [1])
+
+    def test_executar_chama_a_funcao_de_selecao_injetada(self):
+        arquivo = ArquivoFake()
+        arquivo.registros = [
+            {"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"}
+        ]
+
+        def selecao_fake(_):
+            return [], []
+
+        codigo = main.executar(
+            "entrada.json",
+            "aprovados.csv",
+            arquivo_cls=lambda entrada, saida: arquivo,
+            selecao=selecao_fake,
+        )
+
+        self.assertEqual(codigo, 0)
+        self.assertEqual(arquivo.exportados, [])
 
 
 if __name__ == "__main__":
