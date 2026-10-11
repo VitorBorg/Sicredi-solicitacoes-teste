@@ -1,9 +1,38 @@
+import argparse
 import json
 import logging
+from pathlib import Path
 
 from arquivo import ArquivoSolicitacoes
 from definitions import ARQUIVO_ENTRADA, ARQUIVO_LOG, ARQUIVO_SAIDA
 from regras import selecionar
+
+
+def argumentos_cli():
+    parser = argparse.ArgumentParser(
+        description="Processa solicitações aprovadas e gera o CSV."
+    )
+
+    parser.add_argument(
+        "--entrada",
+        type=Path,
+        default=ARQUIVO_ENTRADA,
+        help="Arquivo JSON de entrada (padrão: %(default)s)",
+    )
+    parser.add_argument(
+        "--saida",
+        type=Path,
+        default=ARQUIVO_SAIDA,
+        help="Arquivo CSV de saída (padrão: %(default)s)",
+    )
+    parser.add_argument(
+        "--log",
+        type=Path,
+        default=ARQUIVO_LOG,
+        help="Arquivo de log (padrão: %(default)s)",
+    )
+
+    return parser.parse_args()
 
 
 def configurar_log(caminho):
@@ -25,20 +54,20 @@ def identificacao(registro):
     return "?"
 
 
-def executar():
-    arquivo = ArquivoSolicitacoes(ARQUIVO_ENTRADA, ARQUIVO_SAIDA)
+def executar(caminho_entrada, caminho_saida):
+    arquivo = ArquivoSolicitacoes(caminho_entrada, caminho_saida)
     logging.info("Início do processamento")
 
     try:
         registros = arquivo.carregar()
     except FileNotFoundError:
-        logging.error("Arquivo de entrada não encontrado: %s", ARQUIVO_ENTRADA)
+        logging.error("Arquivo de entrada não encontrado: %s", caminho_entrada)
         return 1
     except json.JSONDecodeError as erro:
-        logging.error("JSON inválido em %s: %s", ARQUIVO_ENTRADA, erro)
+        logging.error("JSON inválido em %s: %s", caminho_entrada, erro)
         return 1
     except ValueError as erro:
-        logging.error("Estrutura inesperada em %s: %s", ARQUIVO_ENTRADA, erro)
+        logging.error("Estrutura inesperada em %s: %s", caminho_entrada, erro)
         return 1
 
     logging.info("Total de registros lidos: %d", len(registros))
@@ -50,7 +79,7 @@ def executar():
     try:
         arquivo.exportar(aprovados)
     except OSError as erro:
-        logging.error("Falha ao gerar %s: %s", ARQUIVO_SAIDA, erro)
+        logging.error("Falha ao gerar %s: %s", caminho_saida, erro)
         return 1
 
     logging.info("Total de registros exportados: %d", len(aprovados))
@@ -60,8 +89,9 @@ def executar():
 
 
 def main():
-    configurar_log(ARQUIVO_LOG)
-    return executar()
+    argumentos = argumentos_cli()
+    configurar_log(argumentos.log)
+    return executar(argumentos.entrada, argumentos.saida)
 
 
 if __name__ == "__main__":

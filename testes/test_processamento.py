@@ -1,73 +1,126 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import main
+from arquivo import ArquivoSolicitacoes
+from definitions import Solicitacao
+from regras import motivo_para_ignorar, selecionar
+
+
+def montar_solicitacao(**campos):
+    base = {"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"}
+    base.update(campos)
+    return Solicitacao.model_validate(base)
 
 
 class TesteMotivoParaIgnorar(unittest.TestCase):
-    def test_aceita_registro_completo(self):
-        registro = {"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"}
-        self.assertIsNone(main.motivo_para_ignorar(registro))
+    def test_aceita_solicitacao_completa(self):
+        self.assertIsNone(motivo_para_ignorar(montar_solicitacao()))
 
     def test_ignora_cpf_vazio(self):
-        registro = {"id": 2, "nome": "João Souza", "cpf": "", "status": "APROVADO"}
-        self.assertEqual(main.motivo_para_ignorar(registro), "CPF nulo ou vazio")
-
-    def test_ignora_cpf_nulo(self):
-        registro = {"id": 2, "nome": "João Souza", "cpf": None, "status": "APROVADO"}
-        self.assertEqual(main.motivo_para_ignorar(registro), "CPF nulo ou vazio")
-
-    def test_ignora_status_diferente_de_aprovado(self):
-        registro = {"id": 3, "nome": "Ana Oliveira", "cpf": "98765432100", "status": "PENDENTE"}
-        self.assertIn("não é APROVADO", main.motivo_para_ignorar(registro))
+        self.assertEqual(motivo_para_ignorar(montar_solicitacao(cpf="")), "CPF nulo ou vazio")
 
     def test_ignora_cpf_com_formato_inesperado(self):
-        registro = {"id": 4, "nome": "Pedro Santos", "cpf": "123", "status": "APROVADO"}
-        self.assertIn("formato inesperado", main.motivo_para_ignorar(registro))
+        self.assertIn("formato inesperado", motivo_para_ignorar(montar_solicitacao(cpf="123")))
 
-    def test_ignora_campos_obrigatorios_ausentes(self):
-        registro = {"id": 5, "nome": "Juliana Costa", "status": "APROVADO"}
-        self.assertIn("campos obrigatórios ausentes", main.motivo_para_ignorar(registro))
-
-    def test_ignora_item_que_nao_e_objeto(self):
-        self.assertIsNotNone(main.motivo_para_ignorar("texto solto"))
+    def test_ignora_status_diferente_de_aprovado(self):
+        self.assertIn("não é APROVADO", motivo_para_ignorar(montar_solicitacao(status="PENDENTE")))
 
 
-class TesteSelecionarParaExportacao(unittest.TestCase):
+class TesteSelecionar(unittest.TestCase):
     def test_separa_aprovados_dos_ignorados(self):
         registros = [
             {"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"},
             {"id": 2, "nome": "João Souza", "cpf": "", "status": "APROVADO"},
             {"id": 3, "nome": "Ana Oliveira", "cpf": "98765432100", "status": "PENDENTE"},
         ]
-        aprovados, ignorados = main.selecionar_para_exportacao(registros)
+        aprovados, ignorados = selecionar(registros)
 
-        self.assertEqual([registro["id"] for registro in aprovados], [1])
+        self.assertEqual([solicitacao.id for solicitacao in aprovados], [1])
         self.assertEqual(len(ignorados), 2)
 
+    def test_registro_sem_campo_obrigatorio_e_ignorado(self):
+        aprovados, ignorados = selecionar([{"id": 1, "nome": "João Souza", "cpf": "12345678900"}])
 
-class TesteLeituraEescrita(unittest.TestCase):
-    def test_le_arquivo_de_exemplo(self):
-        registros = main.ler_solicitacoes(Path("solicitacoes.json"))
-        self.assertEqual(len(registros), 15)
+        self.assertEqual(aprovados, [])
+        self.assertIn("registro inválido", ignorados[0][1])
+
+    def test_item_que_nao_e_objeto_e_ignorado(self):
+        aprovados, ignorados = selecionar(["texto solto"])
+
+        self.assertEqual(aprovados, [])
+        self.assertIn("não é um objeto JSON", ignorados[0][1])
+
+
+class TesteArquivoSolicitacoes(unittest.TestCase):
+    def test_carrega_arquivo_de_exemplo(self):
+        arquivo = ArquivoSolicitacoes(Path("solicitacoes.json"), Path("aprovados.csv"))
+        self.assertEqual(len(arquivo.carregar()), 15)
 
     def test_rejeita_json_cuja_raiz_nao_e_lista(self):
         with tempfile.TemporaryDirectory() as pasta:
-            caminho = Path(pasta) / "entrada.json"
-            caminho.write_text('{"id": 1}', encoding="utf-8")
-            with self.assertRaises(ValueError):
-                main.ler_solicitacoes(caminho)
+            entrada = Path(pasta) / "entrada.json"
+            entrada.write_text('{"id": 1}', encoding="utf-8")
+            arquivo = ArquivoSolicitacoes(entrada, Path(pasta) / "aprovados.csv")
 
-    def test_escreve_csv_com_cabecalho_e_linhas(self):
-        registros = [{"id": 1, "nome": "Maria Silva", "cpf": "12345678900"}]
+            with self.assertRaises(ValueError):
+                arquivo.carregar()
+
+    def test_exporta_csv_com_cabecalho_e_linhas(self):
         with tempfile.TemporaryDirectory() as pasta:
-            caminho = Path(pasta) / "aprovados.csv"
-            main.escrever_csv(registros, caminho)
-            linhas = caminho.read_text(encoding="utf-8").splitlines()
+            saida = Path(pasta) / "aprovados.csv"
+            ArquivoSolicitacoes(Path("solicitacoes.json"), saida).exportar([montar_solicitacao()])
+            linhas = saida.read_text(encoding="utf-8").splitlines()
 
         self.assertEqual(linhas[0], "id;nome;cpf")
         self.assertEqual(linhas[1], "1;Maria Silva;12345678900")
+
+
+class TesteFluxo(unittest.TestCase):
+    def test_executar_gera_csv_com_os_aprovados(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            pasta = Path(pasta)
+            (pasta / "solicitacoes.json").write_text(
+                '[{"id": 1, "nome": "Maria Silva", "cpf": "12345678900", "status": "APROVADO"}, '
+                '{"id": 2, "nome": "João Souza", "cpf": "", "status": "APROVADO"}]',
+                encoding="utf-8",
+            )
+
+            with patch("main.ARQUIVO_ENTRADA", pasta / "solicitacoes.json"), patch(
+                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
+            ):
+                codigo = main.executar()
+
+            conteudo = (pasta / "aprovados.csv").read_text(encoding="utf-8")
+
+        self.assertEqual(codigo, 0)
+        self.assertIn("1;Maria Silva;12345678900", conteudo)
+        self.assertNotIn("João Souza", conteudo)
+
+    def test_executar_retorna_um_quando_o_arquivo_nao_existe(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            pasta = Path(pasta)
+
+            with patch("main.ARQUIVO_ENTRADA", pasta / "inexistente.json"), patch(
+                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
+            ):
+                codigo = main.executar()
+
+        self.assertEqual(codigo, 1)
+
+    def test_executar_retorna_um_com_json_invalido(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            pasta = Path(pasta)
+            (pasta / "solicitacoes.json").write_text("{invalido", encoding="utf-8")
+
+            with patch("main.ARQUIVO_ENTRADA", pasta / "solicitacoes.json"), patch(
+                "main.ARQUIVO_SAIDA", pasta / "aprovados.csv"
+            ):
+                codigo = main.executar()
+
+        self.assertEqual(codigo, 1)
 
 
 if __name__ == "__main__":
