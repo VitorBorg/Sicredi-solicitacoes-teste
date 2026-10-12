@@ -2,9 +2,7 @@ from pydantic import ValidationError
 
 from definitions import Solicitacao, Status
 
-
 def selecionar(registros):
-    """Separa as solicitações válidas das ignoradas, guardando o motivo de cada descarte."""
     aprovados = []
     ignorados = []
 

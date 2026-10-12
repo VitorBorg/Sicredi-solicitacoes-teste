@@ -31,7 +31,7 @@ Ao final são gerados `aprovados.csv` e `processamento.log`. O código de saída
 
 ## Como rodar os testes
 
-    python -m unittest discover
+    python -m unittest
 
 ## Resultado com o arquivo de exemplo
 
@@ -77,4 +77,4 @@ recebidos por um formulário e o arquivo CSV fosse gerado após uma etapa de
 aprovação?"
 
 A lógica de processamento da solução desenvolvida poderia ser reaproveitada, mas para se adaptar precisaríamos olhar para o processo e entender como a comunicação entre as etapas está sendo feita, para então integrar a solução dentro do processo.
-Portanto, neste fluxo hipotético, o formulário passa a ser o ponto de partida, que aciona o processo BPM que então possuiria a solução integrada, que inclui a etapa de aprovação e posteriormente a geração do csv. A integração da saída da aplicação dentro do BPM fica a cargo de entender as particularides do processo para poder implementar de maneira coerente.
+Portanto, neste fluxo hipotético, o formulário passa a ser o ponto de partida, que aciona o processo BPM. Após a etapa de aprovação, a solução seria acionada para receber os registros e como saída o arquivo csv (e o log também). A integração dessas saídas dentro do BPM fica a cargo de entender as particularides do processo para poder implementar de maneira coerente.

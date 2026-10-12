@@ -79,7 +79,7 @@ def executar(caminho_entrada, caminho_saida, arquivo_cls=IOController, selecao=s
     for registro, motivo in ignorados:
         logging.warning("Registro id=%s ignorado: %s", identificacao(registro), motivo)
 
-        logging.info("Conclusão da etapa de validação")
+    logging.info("Conclusão da etapa de validação")
 
     try:
         logging.info("Início da exportação em csv das solicitações aprovadas")
