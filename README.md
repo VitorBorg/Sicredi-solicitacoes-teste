@@ -9,6 +9,11 @@ O sistema recebe solicitações, as verifica, e todas que estiverem válidas sã
 Isso implica em verificação de campos obrigatórios vazios (cpf), verificação de valores de campos (o enum status precisa ser APROVADO), verificações de tipo (como o cpf não contendo apenas dígitos numéricos), regras específicas dos campos (cpf como string, status como enum, cpf nao vazio/null, etc...), e também má formatação do json.
 3. escreve os registros válidos em um arquivo chamado aprovados.csv (se não for explicitado no comando CLI), e gera um arquivo de logs para observabilidade chamado processamento.log.
 
+<figure align="center">
+  <img src="./assets/solucao_diagrama.png" alt="Diagrama de Arquitetura do Sistema" width="800">
+  <figcaption><em>Figura: Fluxo e dependências do sistema. Desenvolvido utilizando a ferramenta open-source AFFiNE.</em></figcaption>
+</figure>
+
 ## Pré-requisitos
 
 Python 3.11 ou superior, por causa do `enum.StrEnum`. A única dependência é o `pydantic` (v2), usada no modelo de validação.
@@ -57,10 +62,10 @@ Dessa forma, defini 5 separações principais:
 4. criação de um arquivo definitions que mantém constantes e definições de enum e classe, para facilitar a leitura e manutenção dessas definições. Visto que o escopo da solução é pequeno, achei mais adequado manter apenas um arquivo. Não acredito que a separação se torna justificável.
 5. o log sai pelo módulo logging (na escrita no arquivo processamento.log e no console).
 6. Os testes foram separados por responsabilidades:
-* test_regras.py: o escopo são as regras de negócio
-* test_io.py: o escopo é a leitura do json e a escrita do csv.
-* test_cli: o escopo são os comandos via terminal
-* test_main.py: escopo é basicamente a orquestração 
+* test_regras.py: o escopo são as regras de negócio.
+* test_io.py: o escopo é a leitura do json e a escrita do csv, e validação da estrutura.
+* test_cli: o escopo são os comandos via terminal.
+* test_main.py: o esocpo é a orquestração, tratamento de erros, argumentos e injeção de dependência.
 
 No total são 20 testes: 7 de regras, 3 de I/O, 8 do orquestrador e apenas 2 do CLI.
 
